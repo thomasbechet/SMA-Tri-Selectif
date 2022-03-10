@@ -10,7 +10,8 @@ public class Agent {
     public enum State {
         MOVING,
         DROPPING,
-        PICKING
+        PICKING,
+        EMITTING
     }
 
     public class Perception {
@@ -22,20 +23,38 @@ public class Agent {
     }
 
     public final static int MEMORY_SIZE = 10;
-    public final static int VIEW_DISTANCE = 2;
+    public final static int VIEW_DISTANCE = 1;
     public final static float KP = 0.1f;
     public final static float KM = 0.3f;
+    public final static int GIVEUP_EMITTING_TICK = 50;
 
     private State state;
-    private Fruit[] memory;
+    protected Fruit[] memory;
     private int currentMemoryIndex;
     private Fruit fruit;
+    private int tickCount;
 
     public Agent() {
         this.state = State.MOVING;
         this.memory = new Fruit[MEMORY_SIZE];
         this.currentMemoryIndex = 0;
         this.fruit = null;
+        this.tickCount = 0;
+    }
+
+    public State getState() {
+        return this.state;
+    }
+
+    public Fruit getFruit() {
+        return this.fruit;
+    }
+    public void setFruit(Fruit fruit) {
+        this.fruit = fruit;
+    }
+
+    public void notifyPicking() {
+        this.state = State.PICKING;
     }
 
     private void addMemory(Fruit fruit) {
@@ -44,7 +63,7 @@ public class Agent {
         this.currentMemoryIndex = (index + 1) % MEMORY_SIZE;
     }
 
-    private float computeFruitFrequency(Fruit f) {
+    protected float computeFruitFrequency(Fruit f) {
         int count = 0;
         for (int i = 0; i < MEMORY_SIZE; i++) {
             if (this.memory[i] != null) {
@@ -63,7 +82,7 @@ public class Agent {
 
         // Find current position
         for (int i = 0; i < (Environment.SIZE_X * Environment.SIZE_Y); i++) {
-            if (env.getCase(i).agent == this) {
+            if (env.getCase(i).agents.contains(this)) {
                 perception.current = env.getCase(i);
             }
         }
@@ -108,23 +127,82 @@ public class Agent {
                 // Save memory
                 addMemory(perception.current.fruit);
 
-                // Filter case with agents
-                List<Case> withoutAgents = perception.view.stream()
-                        .filter(x -> x.agent == null).collect(Collectors.toList());
-                Random random = new Random();
-                Case randomCase = withoutAgents.get(random.nextInt(withoutAgents.size()));
-                env.moveAgent(perception.current, randomCase);
+                // Filter cases
+                List<Case> validCases = perception.view.stream()
+                        .filter(x -> {
+                            // dst has agent
+                            if (x.agents.size() > 0) {
+                                // dst has fruit
+                                if (x.fruit != null) {
+                                    // src is solo
+                                    if (perception.current.agents.size() == 1) {
+                                        // has enough space
+                                        if (x.agents.size() + 1 <= x.fruit.requiredAgentCount()) {
+                                            return true;
+                                        }
+                                    // src is group
+                                    } else {
+                                        return false;
+                                    }
+                                // dst has no fruit
+                                } else {
+                                    return false;
+                                }
+                            // dst has no agent
+                            } else {
+                                // dst has fruit
+                                if (x.fruit != null) {
+                                    // src is solo
+                                    if (perception.current.agents.size() == 1) {
+                                        return true;
+                                    // src is group
+                                    } else {
+                                        return false;
+                                    }
+                                // dst has no fruit
+                                } else {
+                                    // src is solo
+                                    if (x.agents.size() == 1) {
+                                        return true;
+                                    // src is group
+                                    } else {
+                                        return true;
+                                    }
+                                }
+                            }
 
-                // Change state
-                if (this.fruit == null) {
-                    this.state = State.PICKING;
-                } else {
-                    this.state = State.DROPPING;
+                            return false;
+                        })
+                        .collect(Collectors.toList());
+
+                // It has possible movement
+                if (!validCases.isEmpty()) {
+
+                    // Pick a random case
+                    Random random = new Random();
+                    Case randomCase = validCases.get(random.nextInt(validCases.size()));
+                    env.moveAgent(this, perception.current, randomCase);
+
+                    // Check if it should start to emit
+                    if (this.fruit == null) {
+                        // Check emitting only if a group is required
+                        if (randomCase.fruit != null && randomCase.fruit.requiredAgentCount() > 1) {
+                            this.state = State.EMITTING;
+                        }
+                    }
+
+                    // Check if it should start to pick
+                    if (randomCase.fruit != null && this.fruit == null) {
+                        this.state = State.PICKING;
+                    } else if (this.fruit != null) {
+                        this.state = State.DROPPING;
+                    }
+
                 }
             }
             case DROPPING -> {
 
-                // Check it has object
+                // Case has no fruit
                 if (perception.current.fruit == null) {
                     // Compute probability
                     final float f = computeFruitFrequency(this.fruit);
@@ -135,7 +213,6 @@ public class Agent {
                     if (random.nextFloat() <= p) {
                         // Drop the fruit
                         env.dropFruit(perception.current, this.fruit);
-                        this.fruit = null;
                     }
                 }
 
@@ -152,8 +229,6 @@ public class Agent {
                     Random random = new Random();
                     // Check random
                     if (random.nextFloat() <= p) {
-                        // Add to memory
-                        this.fruit = perception.current.fruit;
                         // Pick fruit from environment
                         env.pickFruit(perception.current);
                     }
@@ -161,6 +236,39 @@ public class Agent {
 
                 // Reset state
                 this.state = State.MOVING;
+            }
+            case EMITTING -> {
+
+                // The agent has no fruit
+                if (this.fruit == null) {
+
+                    // The group is completed, pick the fruit
+                    if (perception.current.agents.size() == perception.current.fruit.requiredAgentCount()) {
+                        // Pick the fruit
+                        env.pickFruit(perception.current);
+                        // Change state of all group
+                        for (Agent a : perception.current.agents) {
+                            a.state = State.MOVING;
+                        }
+
+                    // Continue to emit or give up
+                    } else {
+
+                        // Emit
+                        if (this.tickCount < GIVEUP_EMITTING_TICK) {
+                            if (this.tickCount % 5 == 0) {
+                                // Emit signal
+                                env.emitSignal(perception.current);
+                            }
+                            this.tickCount++;
+
+                        // Give up
+                        } else {
+                            this.tickCount = 0;
+                            this.state = State.MOVING;
+                        }
+                    }
+                }
             }
         }
     }

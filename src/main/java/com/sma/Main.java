@@ -1,19 +1,15 @@
 package com.sma;
 
-import javafx.animation.AnimationTimer;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.event.EventHandler;
 import javafx.scene.Scene;
-import javafx.scene.paint.Color;
 import javafx.stage.Stage;
 import javafx.stage.WindowEvent;
 import javafx.util.Duration;
 
 import java.io.IOException;
-import java.util.Timer;
-import java.util.TimerTask;
 
 public class Main extends javafx.application.Application {
 
@@ -36,7 +32,10 @@ public class Main extends javafx.application.Application {
         // Create environment and update
         Environment environment = new Environment(board);
         Timeline timeline = new Timeline(new KeyFrame(Duration.millis(1), (event) -> {
-            environment.update();
+            for (int i = 0; i < 10; i++) {
+                environment.update();
+            }
+            environment.updateView();
         }));
         timeline.setCycleCount(Timeline.INDEFINITE);
         timeline.playFromStart();

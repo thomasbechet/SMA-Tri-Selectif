@@ -2,14 +2,14 @@ package com.sma;
 
 import javafx.scene.paint.Color;
 
-public class Banana extends Fruit {
+public class Kiwi extends Fruit {
     @Override
     public Color getColor() {
-        return Color.YELLOW;
+        return Color.GREEN;
     }
 
     @Override
     public int requiredAgentCount() {
-        return 1;
+        return 2;
     }
 }

@@ -7,4 +7,9 @@ public class Apple extends Fruit {
     public Color getColor() {
         return Color.RED;
     }
+
+    @Override
+    public int requiredAgentCount() {
+        return 1;
+    }
 }

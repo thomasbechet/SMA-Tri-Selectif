@@ -14,7 +14,15 @@ public class Environment {
     public final static int SIZE_Y = 50;
     public final static int BANANA_COUNT = 200;
     public final static int APPLE_COUNT = 200;
+    public final static int KIWI_COUNT = 20;
     public final static int AGENT_COUNT = 20;
+
+//    public final static int SIZE_X = 50;
+//    public final static int SIZE_Y = 50;
+//    public final static int BANANA_COUNT = 0;
+//    public final static int APPLE_COUNT = 0;
+//    public final static int KIWI_COUNT = 500;
+//    public final static int AGENT_COUNT = 50;
 
     public static int toX(int p) {
         return p % SIZE_X;
@@ -45,7 +53,7 @@ public class Environment {
         this.cases = new Case[SIZE_X * SIZE_Y];
         for (int i = 0; i < (SIZE_X * SIZE_Y); i++) {
             this.cases[i] = new Case();
-            this.cases[i].agent = null;
+            this.cases[i].agents = new ArrayList<>();
             this.cases[i].fruit = null;
             this.cases[i].position = i;
         }
@@ -70,20 +78,32 @@ public class Environment {
             this.fruits.add(fruit);
             this.cases[p].fruit = fruit;
         }
+        for (int i = 0; i < KIWI_COUNT; i++) {
+            int p = positions.remove(random.nextInt(positions.size()));
+            Fruit fruit = new Kiwi();
+            this.fruits.add(fruit);
+            this.cases[p].fruit = fruit;
+        }
         // Place agents
         for (int i = 0; i < AGENT_COUNT; i++) {
             int p = positions.remove(random.nextInt(positions.size()));
+            // Select which type of agent to spawn
             Agent agent = new Agent();
+//            Agent agent = new AgentDropPickError();
             this.agents.add(agent);
-            this.cases[p].agent = agent;
+            this.cases[p].agents.add(agent);
         }
     }
 
-    private void updateView() {
+    public void updateView() {
         for (int i = 0; i < (SIZE_X * SIZE_Y); i++) {
-            if (this.cases[i].fruit != null || this.cases[i].agent != null) {
-                if (this.cases[i].agent != null) {
-                    this.view.setCellColor(Environment.toX(i), Environment.toY(i), Color.BLUE);
+            if (this.cases[i].fruit != null || !this.cases[i].agents.isEmpty()) {
+                if (!this.cases[i].agents.isEmpty()) {
+                    if (this.cases[i].agents.size() == 1) {
+                        this.view.setCellColor(Environment.toX(i), Environment.toY(i), Color.BLUE);
+                    } else {
+                        this.view.setCellColor(Environment.toX(i), Environment.toY(i), Color.PURPLE);
+                    }
                 } else if (this.cases[i].fruit != null) {
                     this.view.setCellColor(Environment.toX(i), Environment.toY(i), this.cases[i].fruit.getColor());
                 }
@@ -100,22 +120,102 @@ public class Environment {
         return this.cases[position];
     }
 
-    public void moveAgent(Case src, Case dst) {
-        if (src != dst && src.agent != null && dst.agent == null) {
-            // TODO: check manhattan distance to ensure the agent is not cheating
-            dst.agent = src.agent;
-            src.agent = null;
+    public void moveAgent(Agent agent, Case src, Case dst) {
+
+        // [  ] -> empty case
+        // [X  ] -> case with fruit
+        // [ A ] -> case with agent
+        // [XA ] -> case with agent and fruit
+        // [XA+] -> case with group agent and a fruit
+
+        // [ A ] -> [  ] : Move (None)
+        // [ A ] -> [X ] : Move (None)
+        // [ A ] -> [ A] : Not Move
+        // [ A ] -> [XA] : Move (if dst.agents.size() + 1 == dst.fruit.requiredAgentCount())
+        // [XA ] -> [  ] : Move (None)
+        // [XA ] -> [X ] : Move
+        // [XA ] -> [ A] : Not Move
+        // [XA ] -> [XA] : Not Move
+        // [XA+] -> [  ] : Move (None)
+        // [XA+] -> [X ] : Move (None)
+        // [XA+] -> [ A] : Not Move
+        // [XA+] -> [XA] : Not Move
+
+        // TODO: check manhattan distance to ensure the agent is not cheating
+
+        // dst has agent
+        if (dst.agents.size() > 0) {
+            // dst has fruit
+            if (dst.fruit != null) {
+                // src is solo
+                if (src.agents.size() == 1) {
+                    // has enough space
+                    if (dst.agents.size() + 1 <= dst.fruit.requiredAgentCount()) {
+                        // Move agent
+                        dst.agents.add(agent);
+                        src.agents.remove(agent);
+
+                    }
+                // src is group
+                } else {
+                    assert false; // Impossible
+                }
+            // dst has no fruit
+            } else {
+                assert false; // Impossible
+            }
+        // dst has no agent
+        } else {
+            // dst has fruit
+            if (dst.fruit != null) {
+                // src is solo
+                if (src.agents.size() == 1) {
+                    // Move agent
+                    dst.agents.add(agent);
+                    src.agents.remove(agent);
+                // src is group
+                } else {
+                    assert false; // Impossible
+                }
+            // dst has no fruit
+            } else {
+                // src is solo
+                if (src.agents.size() == 1) {
+                    // Move agent
+                    dst.agents.add(agent);
+                    src.agents.remove(agent);
+                // src is group
+                } else {
+                    // Move the group or solo
+                    for (Agent a : src.agents) {
+                        dst.agents.add(a);
+                    }
+                    src.agents.clear();
+                }
+            }
         }
     }
 
     public void pickFruit(Case c) {
         if (c.fruit != null) {
-            c.fruit = null;
+            if (c.fruit.requiredAgentCount() == c.agents.size()) {
+                for (Agent a : c.agents) {
+                    a.setFruit(c.fruit);
+                }
+                c.fruit = null;
+            }
         }
+    }
+
+    public void emitSignal(Case c) {
+        System.out.println("EMIIIIIIIIIIIIIIIIIT");
     }
 
     public void dropFruit(Case dst, Fruit fruit) {
         if (dst.fruit == null) {
+            for (Agent a : dst.agents) {
+                a.setFruit(null);
+            }
             dst.fruit = fruit;
         }
     }
@@ -123,22 +223,21 @@ public class Environment {
     private int it = 0;
 
     public void update() {
-        for (int i = 0; i < AGENT_COUNT; i++) {
-            // Pick random agent
-//            Random random = new Random();
+        Random random = new Random();
+
+        // Pick random agent
 //            Agent a = this.agents.get(random.nextInt(this.agents.size()));
 
-            Agent a = this.agents.get(i);
+        int i = (it % AGENT_COUNT);
+//        System.out.println("Agent " + i);
+        Agent a = this.agents.get(i);
 
-            // Update agent
-            Agent.Perception perception = a.perception(this);
-            a.action(perception, this);
-        }
+        // Update agent
+        Agent.Perception perception = a.perception(this);
+        a.action(perception, this);
 
-        if ((it++ % 100) == 0) {
+        if ((it++ % 5000) == 0) {
             System.out.println("Iteration: " + it);
         }
-        // Update board view
-        updateView();
     }
 }
