@@ -18,7 +18,7 @@ public class Main extends javafx.application.Application {
 
         // Create scene
         VisualBoard board = new VisualBoard();
-        Scene scene = new Scene(board.getGridPane(), 500, 500);
+        Scene scene = new Scene(board.getGridPane(), 1000, 1000);
         stage.setScene(scene);
         stage.setOnCloseRequest(new EventHandler<WindowEvent>() {
             @Override
@@ -32,7 +32,7 @@ public class Main extends javafx.application.Application {
         // Create environment and update
         Environment environment = new Environment(board);
         Timeline timeline = new Timeline(new KeyFrame(Duration.millis(1), (event) -> {
-            for (int i = 0; i < 10; i++) {
+            for (int i = 0; i < 50; i++) {
                 environment.update();
             }
             environment.updateView();

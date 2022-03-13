@@ -22,7 +22,7 @@ public class VisualBoard {
         for(int y = 0; y < Environment.SIZE_Y ; y++) {
             for(int x = 0; x < Environment.SIZE_X ; x++) {
                 StackPane stackPane = new StackPane();
-                float cellSize = 10.0f;
+                float cellSize = 40.0f;
                 stackPane.setMaxSize(cellSize, cellSize);
                 stackPane.setMinSize(cellSize, cellSize);
                 this.gridPane.add(stackPane, x, y);
@@ -30,12 +30,15 @@ public class VisualBoard {
                 stackPanes.add(stackPane);
             }
         }
-        this.gridPane.setGridLinesVisible(true);
+        this.gridPane.setGridLinesVisible(false);
         this.gridPane.autosize();
     }
 
     public void setCellColor(int x, int y, Color color) {
         this.panes[y * Environment.SIZE_X + x].setBackground(new Background(new BackgroundFill(color, CornerRadii.EMPTY, Insets.EMPTY)));
+    }
+    public void setCellRedColor(int x, int y, float v) {
+        this.panes[y * Environment.SIZE_X + x].setBorder(new Border(new BorderStroke(Color.color(1.0, 0.0f, 0.0f, Math.max(0.1f, v)), BorderStrokeStyle.SOLID, CornerRadii.EMPTY, BorderWidths.DEFAULT)));
     }
 
     public GridPane getGridPane() {

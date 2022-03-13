@@ -10,19 +10,21 @@ import java.util.Random;
 public class Environment {
 
     public final static int INVALID_POSITION = -1;
-    public final static int SIZE_X = 50;
-    public final static int SIZE_Y = 50;
-    public final static int BANANA_COUNT = 200;
-    public final static int APPLE_COUNT = 200;
-    public final static int KIWI_COUNT = 20;
+    public final static float EVAPORATION_RATE = 0.0005f;
+
+    public final static int SIZE_X = 30;
+    public final static int SIZE_Y = 30;
+    public final static int BANANA_COUNT = 50;
+    public final static int APPLE_COUNT = 50;
+    public final static int KIWI_COUNT = 100;
     public final static int AGENT_COUNT = 20;
 
-//    public final static int SIZE_X = 50;
-//    public final static int SIZE_Y = 50;
+//    public final static int SIZE_X = 4;
+//    public final static int SIZE_Y = 4;
 //    public final static int BANANA_COUNT = 0;
 //    public final static int APPLE_COUNT = 0;
-//    public final static int KIWI_COUNT = 500;
-//    public final static int AGENT_COUNT = 50;
+//    public final static int KIWI_COUNT = 3;
+//    public final static int AGENT_COUNT = 2;
 
     public static int toX(int p) {
         return p % SIZE_X;
@@ -52,10 +54,7 @@ public class Environment {
         // Initialize board
         this.cases = new Case[SIZE_X * SIZE_Y];
         for (int i = 0; i < (SIZE_X * SIZE_Y); i++) {
-            this.cases[i] = new Case();
-            this.cases[i].agents = new ArrayList<>();
-            this.cases[i].fruit = null;
-            this.cases[i].position = i;
+            this.cases[i] = new Case(i);
         }
 
         // Generate free positions
@@ -97,6 +96,7 @@ public class Environment {
 
     public void updateView() {
         for (int i = 0; i < (SIZE_X * SIZE_Y); i++) {
+            this.view.setCellRedColor(Environment.toX(i), Environment.toY(i), Math.min(this.cases[i].signal, 1.0f));
             if (this.cases[i].fruit != null || !this.cases[i].agents.isEmpty()) {
                 if (!this.cases[i].agents.isEmpty()) {
                     if (this.cases[i].agents.size() == 1) {
@@ -118,6 +118,23 @@ public class Environment {
         int y = toY(position);
         if (!isValidPosition(x, y)) return null;
         return this.cases[position];
+    }
+
+    private void moveAgentSolo(Agent agent, Case src, Case dst) {
+        dst.agents.add(agent);
+        src.agents.remove(agent);
+    }
+    private void moveAgentGroup(Agent agent, Case src, Case dst) {
+        for (Agent a : src.agents) {
+            if (a.getFruit() == agent.getFruit()) {
+                dst.agents.add(a);
+            }
+        }
+        for (Agent a : dst.agents) {
+            if (a.getFruit() == agent.getFruit()) {
+                src.agents.remove(a);
+            }
+        }
     }
 
     public void moveAgent(Agent agent, Case src, Case dst) {
@@ -152,9 +169,7 @@ public class Environment {
                     // has enough space
                     if (dst.agents.size() + 1 <= dst.fruit.requiredAgentCount()) {
                         // Move agent
-                        dst.agents.add(agent);
-                        src.agents.remove(agent);
-
+                        moveAgentSolo(agent, src, dst);
                     }
                 // src is group
                 } else {
@@ -168,29 +183,24 @@ public class Environment {
         } else {
             // dst has fruit
             if (dst.fruit != null) {
-                // src is solo
-                if (src.agents.size() == 1) {
-                    // Move agent
-                    dst.agents.add(agent);
-                    src.agents.remove(agent);
-                // src is group
-                } else {
-                    assert false; // Impossible
-                }
+                moveAgentGroup(agent, src, dst);
             // dst has no fruit
             } else {
                 // src is solo
                 if (src.agents.size() == 1) {
                     // Move agent
-                    dst.agents.add(agent);
-                    src.agents.remove(agent);
+                    moveAgentSolo(agent, src, dst);
                 // src is group
                 } else {
-                    // Move the group or solo
-                    for (Agent a : src.agents) {
-                        dst.agents.add(a);
+                    // group has a fruit
+                    if (src.agents.get(0).getFruit() != null) {
+                        // Move the group or solo
+                        moveAgentGroup(agent, src, dst);
+                    // no group, when the group has dropped the fruit
+                    } else {
+                        // Move agent
+                        moveAgentSolo(agent, src, dst);
                     }
-                    src.agents.clear();
                 }
             }
         }
@@ -207,8 +217,43 @@ public class Environment {
         }
     }
 
-    public void emitSignal(Case c) {
-        System.out.println("EMIIIIIIIIIIIIIIIIIT");
+    public List<Case> findViewCases(int p, int viewDistance) {
+        List<Case> cases = new ArrayList<>();
+        int cx = Environment.toX(p);
+        int cy = Environment.toY(p);
+        for (int dir = -1; dir <= 1; dir += 2) {
+            {
+                int y = cy + viewDistance * dir;
+                for (int x = (cx - viewDistance); x <= (cx + viewDistance); x++) {
+                    if (Environment.isValidPosition(x, y)) {
+                        Case c = getCase(Environment.to1D(x, y));
+                        if (c != null) {
+                            cases.add(c);
+                        }
+                    }
+                }
+            }
+            {
+                int x = cx + viewDistance * dir;
+                for (int y = (cy - viewDistance + 1); y <= (cy + viewDistance - 1); y++) {
+                    if (Environment.isValidPosition(x, y)) {
+                        Case c = getCase(Environment.to1D(x, y));
+                        if (c != null) {
+                            cases.add(c);
+                        }
+                    }
+                }
+            }
+        }
+        return cases;
+    }
+
+    public void emitSignal(Case src, float value, int distance) {
+        for (int i = 1; i < distance+1; i++) {
+            for (Case c : findViewCases(src.position, i)) {
+                c.signal += value - (value / (float)distance);
+            }
+        }
     }
 
     public void dropFruit(Case dst, Fruit fruit) {
@@ -220,23 +265,32 @@ public class Environment {
         }
     }
 
+    public void evaporation() {
+        for (int i = 0; i < (SIZE_X * SIZE_Y); i++) {
+            this.cases[i].signal -= this.cases[i].signal * EVAPORATION_RATE;
+        }
+    }
+
     private int it = 0;
 
+    private int agentId = 0;
     public void update() {
-        Random random = new Random();
+
+        // Evaporation step
+        evaporation();
 
         // Pick random agent
-//            Agent a = this.agents.get(random.nextInt(this.agents.size()));
+//        Random random = new Random();
+//        Agent a = this.agents.get(random.nextInt(this.agents.size()));
 
-        int i = (it % AGENT_COUNT);
-//        System.out.println("Agent " + i);
-        Agent a = this.agents.get(i);
+        Agent a = this.agents.get(this.agentId);
+        this.agentId = (this.agentId + 1) % this.agents.size();
 
         // Update agent
         Agent.Perception perception = a.perception(this);
         a.action(perception, this);
 
-        if ((it++ % 5000) == 0) {
+        if ((it++ % 10000) == 0) {
             System.out.println("Iteration: " + it);
         }
     }
