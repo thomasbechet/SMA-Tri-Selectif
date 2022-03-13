@@ -1,3 +1,9 @@
+/**
+ * @Authors
+ * Thomas BECHET
+ * Helloïs BARBOSA
+ */
+
 package com.sma;
 
 import javafx.scene.paint.Color;

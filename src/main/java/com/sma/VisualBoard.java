@@ -1,3 +1,9 @@
+/**
+ * @Authors
+ * Thomas BECHET
+ * Helloïs BARBOSA
+ */
+
 package com.sma;
 
 import javafx.geometry.Insets;
@@ -22,7 +28,7 @@ public class VisualBoard {
         for(int y = 0; y < Environment.SIZE_Y ; y++) {
             for(int x = 0; x < Environment.SIZE_X ; x++) {
                 StackPane stackPane = new StackPane();
-                float cellSize = 40.0f;
+                float cellSize = 20.0f;
                 stackPane.setMaxSize(cellSize, cellSize);
                 stackPane.setMinSize(cellSize, cellSize);
                 this.gridPane.add(stackPane, x, y);

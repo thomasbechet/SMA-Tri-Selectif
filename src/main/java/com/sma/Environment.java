@@ -1,3 +1,9 @@
+/**
+ * @Authors
+ * Thomas BECHET
+ * Helloïs BARBOSA
+ */
+
 package com.sma;
 
 import javafx.scene.paint.Color;
@@ -12,11 +18,11 @@ public class Environment {
     public final static int INVALID_POSITION = -1;
     public final static float EVAPORATION_RATE = 0.0005f;
 
-    public final static int SIZE_X = 30;
-    public final static int SIZE_Y = 30;
-    public final static int BANANA_COUNT = 50;
-    public final static int APPLE_COUNT = 50;
-    public final static int KIWI_COUNT = 100;
+    public final static int SIZE_X = 50;
+    public final static int SIZE_Y = 50;
+    public final static int BANANA_COUNT = 200;
+    public final static int APPLE_COUNT = 200;
+    public final static int KIWI_COUNT = 0;
     public final static int AGENT_COUNT = 20;
 
 //    public final static int SIZE_X = 4;
